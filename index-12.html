@@ -1,0 +1,1896 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>Portfolio — Crypto Simulator</title>
+<meta name="description" content="Symulator portfela kryptowalut — dane demonstracyjne, przechowywane lokalnie.">
+
+<!-- ===== CDN: fonts, ikony, wykresy ===== -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@500;700;800&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.4/chart.umd.min.js"></script>
+
+<style>
+/* =========================================================================
+   RESET I ZMIENNE GLOBALNE
+   ========================================================================= */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root{
+  /* Paleta — ciemny motyw premium z akcentem zieleni */
+  --bg-void:        #050705;
+  --bg-app:         #0a0d0a;
+  --bg-elevated:    #10140f;
+  --card:           rgba(255,255,255,0.035);
+  --card-hover:     rgba(255,255,255,0.06);
+  --border:         rgba(255,255,255,0.08);
+  --border-soft:    rgba(255,255,255,0.05);
+
+  --green:          #2be38a;
+  --green-dim:      #17c26f;
+  --green-glow:     rgba(43,227,138,0.35);
+  --red:            #ff5c5c;
+  --red-glow:       rgba(255,92,92,0.25);
+
+  --text:           #f4f7f5;
+  --text-dim:       #8b968f;
+  --text-faint:     #545e58;
+
+  --radius-lg:      28px;
+  --radius-md:      18px;
+  --radius-sm:      12px;
+
+  --font-display:   'Manrope', sans-serif;
+  --font-body:      'Inter', sans-serif;
+  --font-mono:      'JetBrains Mono', monospace;
+
+  --ease:           cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+html, body{ height: 100%; }
+
+body{
+  font-family: var(--font-body);
+  background: var(--bg-void);
+  color: var(--text);
+  -webkit-font-smoothing: antialiased;
+  overflow-x: hidden;
+}
+
+/* Delikatny ambientowy blask w tle dla widoku desktopowego */
+body::before{
+  content:'';
+  position: fixed;
+  inset: 0;
+  background:
+    radial-gradient(circle at 15% 20%, rgba(43,227,138,0.10), transparent 40%),
+    radial-gradient(circle at 85% 75%, rgba(43,227,138,0.06), transparent 45%);
+  pointer-events: none;
+  z-index: 0;
+}
+
+button{ font-family: inherit; cursor: pointer; border: none; background: none; color: inherit; }
+input{ font-family: inherit; color: inherit; }
+a{ color: inherit; }
+
+::selection{ background: var(--green-glow); color: var(--text); }
+
+/* Widoczny fokus klawiaturowy — dostępność */
+button:focus-visible,
+input:focus-visible,
+.nav-item:focus-visible{
+  outline: 2px solid var(--green);
+  outline-offset: 2px;
+  border-radius: 8px;
+}
+
+@media (prefers-reduced-motion: reduce){
+  *, *::before, *::after{
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+::-webkit-scrollbar{ width: 4px; height: 4px; }
+::-webkit-scrollbar-thumb{ background: rgba(255,255,255,0.12); border-radius: 4px; }
+::-webkit-scrollbar-track{ background: transparent; }
+
+/* =========================================================================
+   STRUKTURA STRONY — wyśrodkowana "ramka telefonu" na desktopie
+   ========================================================================= */
+.stage{
+  position: relative;
+  z-index: 1;
+  min-height: 100dvh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 32px 16px;
+}
+
+.phone{
+  width: 412px;
+  height: 860px;
+  max-height: calc(100dvh - 64px);
+  background: #000;
+  border-radius: 52px;
+  padding: 12px;
+  box-shadow:
+    0 0 0 1px rgba(255,255,255,0.06),
+    0 40px 100px -20px rgba(0,0,0,0.9),
+    0 0 120px -30px var(--green-glow);
+  position: relative;
+}
+
+.screen{
+  width: 100%;
+  height: 100%;
+  background: var(--bg-app);
+  border-radius: 40px;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  position: relative;
+}
+
+/* Notch dekoracyjny */
+.notch{
+  position: absolute;
+  top: 12px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 110px;
+  height: 24px;
+  background: #000;
+  border-radius: 20px;
+  z-index: 50;
+}
+
+/* Fałszywy pasek statusu, jak na zrzucie ekranu */
+.statusbar{
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 26px 4px;
+  font-family: var(--font-mono);
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+.statusbar .icons{ display: flex; align-items: center; gap: 6px; font-size: 12px; }
+
+/* =========================================================================
+   NAWIGACJA DOLNA
+   ========================================================================= */
+.bottom-nav{
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-around;
+  padding: 10px 8px calc(14px + env(safe-area-inset-bottom, 0px));
+  background: rgba(10,13,10,0.85);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border-top: 1px solid var(--border-soft);
+}
+
+.nav-item{
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 6px 10px;
+  border-radius: 12px;
+  color: var(--text-faint);
+  transition: color 0.25s var(--ease), transform 0.2s var(--ease);
+  -webkit-tap-highlight-color: transparent;
+}
+.nav-item i{ font-size: 18px; }
+.nav-item span{ font-size: 10.5px; font-weight: 600; letter-spacing: 0.01em; }
+.nav-item:active{ transform: scale(0.9); }
+.nav-item.active{ color: var(--green); }
+
+/* =========================================================================
+   KONTENER WIDOKÓW
+   ========================================================================= */
+.views{
+  flex: 1;
+  position: relative;
+  overflow: hidden;
+}
+
+.view{
+  position: absolute;
+  inset: 0;
+  overflow-y: auto;
+  padding: 8px 22px 28px;
+  opacity: 0;
+  transform: translateY(10px);
+  pointer-events: none;
+  transition: opacity 0.32s var(--ease), transform 0.32s var(--ease);
+}
+.view.active{
+  opacity: 1;
+  transform: translateY(0);
+  pointer-events: auto;
+}
+
+.view-header{
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 0 20px;
+}
+.view-header h1{
+  font-family: var(--font-display);
+  font-size: 26px;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+}
+.icon-btn{
+  width: 38px; height: 38px;
+  display: flex; align-items: center; justify-content: center;
+  border-radius: 50%;
+  background: var(--card);
+  border: 1px solid var(--border-soft);
+  color: var(--text);
+  font-size: 14px;
+  transition: background 0.2s var(--ease), transform 0.15s var(--ease);
+  position: relative;
+}
+.icon-btn:hover{ background: var(--card-hover); }
+.icon-btn:active{ transform: scale(0.92); }
+.icon-btn .dot{
+  position: absolute; top: 8px; right: 8px;
+  width: 6px; height: 6px; border-radius: 50%;
+  background: var(--green); box-shadow: 0 0 6px var(--green);
+}
+
+/* =========================================================================
+   KARTY / GLASSMORPHISM
+   ========================================================================= */
+.card{
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+}
+
+/* ---- Karta salda (Home / Portfolio) ---- */
+.balance-card{
+  padding: 26px 24px 8px;
+  margin-bottom: 22px;
+  position: relative;
+  overflow: hidden;
+}
+.balance-card::after{
+  content:'';
+  position: absolute;
+  top: -60%; right: -30%;
+  width: 260px; height: 260px;
+  background: radial-gradient(circle, var(--green-glow), transparent 70%);
+  pointer-events: none;
+}
+.balance-top{
+  display: flex; align-items: center; justify-content: space-between;
+  margin-bottom: 14px;
+}
+.balance-label{
+  display: flex; align-items: center; gap: 8px;
+  color: var(--text-dim); font-size: 13.5px; font-weight: 600;
+}
+.balance-label button{ color: var(--text-dim); font-size: 13px; transition: color 0.2s; }
+.balance-label button:hover{ color: var(--text); }
+
+.period-pill{
+  display: flex; align-items: center; gap: 6px;
+  padding: 6px 12px;
+  background: rgba(255,255,255,0.05);
+  border-radius: 20px;
+  font-size: 12px; font-weight: 600; color: var(--text-dim);
+}
+
+.balance-amount{
+  font-family: var(--font-mono);
+  font-size: 38px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  font-variant-numeric: tabular-nums;
+  margin-bottom: 6px;
+  position: relative; z-index: 1;
+}
+.balance-delta{
+  display: flex; align-items: center; gap: 6px;
+  font-family: var(--font-mono);
+  font-size: 13.5px; font-weight: 600;
+  color: var(--green);
+  margin-bottom: 18px;
+}
+.balance-delta.negative{ color: var(--red); }
+
+.mini-chart{ height: 100px; margin: 0 -6px -2px; position: relative; z-index: 1; }
+
+/* ---- Przyciski akcji (Deposit / Withdraw / Swap / History) ---- */
+.action-row{
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 10px;
+  margin-bottom: 26px;
+}
+.action-btn{
+  display: flex; flex-direction: column; align-items: center; gap: 8px;
+  padding: 4px 0;
+  transition: transform 0.2s var(--ease);
+}
+.action-btn:active{ transform: scale(0.92); }
+.action-btn .circle{
+  width: 50px; height: 50px;
+  border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 17px;
+  transition: box-shadow 0.25s var(--ease), background 0.25s var(--ease);
+}
+.action-btn.primary .circle{ background: var(--green); color: #06170f; box-shadow: 0 6px 20px -4px var(--green-glow); }
+.action-btn.primary:hover .circle{ box-shadow: 0 8px 28px -4px var(--green-glow); }
+.action-btn:not(.primary) .circle{ background: var(--card); border: 1px solid var(--border); color: var(--text); }
+.action-btn:not(.primary):hover .circle{ background: var(--card-hover); }
+.action-btn span{ font-size: 11.5px; font-weight: 600; color: var(--text-dim); }
+
+/* ---- Sekcje / listy ---- */
+.section-title{
+  font-family: var(--font-display);
+  font-size: 15.5px; font-weight: 700;
+  margin-bottom: 12px;
+  display: flex; align-items: center; justify-content: space-between;
+}
+.section-title .muted{ font-size: 12px; color: var(--text-faint); font-weight: 500; font-family: var(--font-body); }
+
+.asset-list{ display: flex; flex-direction: column; gap: 2px; margin-bottom: 10px; }
+
+.asset-row{
+  display: flex; align-items: center; gap: 12px;
+  padding: 12px 10px;
+  border-radius: var(--radius-md);
+  transition: background 0.2s var(--ease);
+  -webkit-tap-highlight-color: transparent;
+}
+.asset-row:hover{ background: var(--card); }
+.asset-row:active{ background: var(--card-hover); }
+
+.coin-icon{
+  width: 42px; height: 42px;
+  border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: 16px;
+  flex-shrink: 0;
+  box-shadow: 0 4px 12px -4px rgba(0,0,0,0.5);
+}
+
+.asset-info{ flex: 1; min-width: 0; }
+.asset-info .name{ font-size: 14.5px; font-weight: 700; }
+.asset-info .sub{ font-size: 12px; color: var(--text-faint); font-family: var(--font-mono); margin-top: 1px; }
+
+.asset-numbers{ text-align: right; flex-shrink: 0; }
+.asset-numbers .primary-val{ font-family: var(--font-mono); font-size: 14px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.asset-numbers .secondary-val{ font-size: 11.5px; color: var(--text-faint); font-family: var(--font-mono); margin-top: 1px; }
+
+.change-pill{
+  display: inline-flex; align-items: center; gap: 3px;
+  font-size: 12px; font-weight: 700;
+  font-family: var(--font-mono);
+}
+.change-pill.positive{ color: var(--green); }
+.change-pill.negative{ color: var(--red); }
+
+.sparkline{ width: 60px; height: 28px; flex-shrink: 0; }
+
+/* ---- Rynek: pasek wyszukiwania i filtry ---- */
+.search-bar{
+  display: flex; align-items: center; gap: 10px;
+  padding: 13px 16px;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  margin-bottom: 16px;
+}
+.search-bar i{ color: var(--text-faint); font-size: 14px; }
+.search-bar input{
+  flex: 1; background: none; border: none; outline: none;
+  font-size: 14.5px; color: var(--text);
+}
+.search-bar input::placeholder{ color: var(--text-faint); }
+
+.filter-tabs{
+  display: flex; gap: 8px;
+  margin-bottom: 18px;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.filter-tabs::-webkit-scrollbar{ display: none; }
+.filter-tab{
+  flex-shrink: 0;
+  padding: 8px 16px;
+  border-radius: 20px;
+  font-size: 13px; font-weight: 600;
+  color: var(--text-dim);
+  background: transparent;
+  border: 1px solid transparent;
+  transition: all 0.2s var(--ease);
+  white-space: nowrap;
+}
+.filter-tab.active{ background: var(--green); color: #06170f; }
+.filter-tab:not(.active):hover{ background: var(--card); }
+
+.star-btn{ color: var(--text-faint); font-size: 14px; padding: 6px; flex-shrink: 0; transition: color 0.2s, transform 0.2s; }
+.star-btn.active{ color: var(--green); }
+.star-btn:active{ transform: scale(0.8); }
+
+.empty-state{
+  text-align: center; padding: 60px 20px; color: var(--text-faint);
+}
+.empty-state i{ font-size: 30px; margin-bottom: 12px; opacity: 0.5; display: block; }
+.empty-state p{ font-size: 13.5px; }
+
+/* ---- Coin detail ---- */
+.back-btn{
+  display: flex; align-items: center; justify-content: center;
+  width: 38px; height: 38px;
+  border-radius: 50%;
+  background: var(--card);
+  border: 1px solid var(--border-soft);
+}
+.coin-header{ display: flex; align-items: center; gap: 12px; margin-bottom: 4px; }
+.coin-header .coin-icon{ width: 34px; height: 34px; font-size: 13px; }
+.coin-header .names{ flex: 1; }
+.coin-header .names .full{ font-size: 15px; font-weight: 700; }
+.coin-header .names .sym{ font-size: 11.5px; color: var(--text-faint); }
+
+.coin-price-block{ margin: 18px 0 6px; }
+.coin-price{ font-family: var(--font-mono); font-size: 36px; font-weight: 700; letter-spacing: -0.01em; }
+.coin-subprice{ font-size: 12.5px; color: var(--text-faint); font-family: var(--font-mono); margin-top: 2px; }
+
+.timeframe-row{
+  display: flex; gap: 4px;
+  background: var(--card);
+  border: 1px solid var(--border-soft);
+  border-radius: 14px;
+  padding: 4px;
+  margin: 18px 0 4px;
+}
+.timeframe-btn{
+  flex: 1; text-align: center;
+  padding: 8px 0;
+  border-radius: 10px;
+  font-size: 12px; font-weight: 700;
+  color: var(--text-faint);
+  transition: all 0.2s var(--ease);
+}
+.timeframe-btn.active{ background: var(--green); color: #06170f; }
+
+.coin-chart-wrap{ height: 190px; margin: 14px -6px 6px; }
+
+.stats-grid{
+  display: flex; flex-direction: column; gap: 0;
+  margin: 22px 0 20px;
+  border-top: 1px solid var(--border-soft);
+}
+.stat-row{
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 13px 2px;
+  border-bottom: 1px solid var(--border-soft);
+}
+.stat-row .label{ font-size: 13.5px; color: var(--text-dim); }
+.stat-row .val{ font-family: var(--font-mono); font-size: 13.5px; font-weight: 600; }
+
+.buy-sell-row{ display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 20px; }
+.big-btn{
+  padding: 15px 0;
+  border-radius: 16px;
+  font-size: 14.5px; font-weight: 700;
+  text-align: center;
+  transition: transform 0.15s var(--ease), filter 0.2s;
+}
+.big-btn:active{ transform: scale(0.96); }
+.big-btn.sell{ background: var(--card); border: 1px solid var(--border); color: var(--text); }
+.big-btn.sell:hover{ background: var(--card-hover); }
+.big-btn.buy{ background: var(--green); color: #06170f; }
+.big-btn.buy:hover{ filter: brightness(1.08); }
+
+/* ---- Swap ---- */
+.swap-card{ padding: 20px; margin-bottom: 16px; }
+.swap-field{
+  background: rgba(255,255,255,0.03);
+  border: 1px solid var(--border-soft);
+  border-radius: 16px;
+  padding: 16px;
+  margin-bottom: 4px;
+}
+.swap-field .row-top{ display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
+.swap-field label{ font-size: 12px; color: var(--text-faint); font-weight: 600; }
+.swap-field .max-btn{ font-size: 11px; color: var(--green); font-weight: 700; }
+.swap-field .row-input{ display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.swap-field input{
+  flex: 1; min-width: 0; background: none; border: none; outline: none;
+  font-family: var(--font-mono); font-size: 22px; font-weight: 700; color: var(--text);
+}
+.swap-select{
+  display: flex; align-items: center; gap: 8px;
+  padding: 8px 12px 8px 8px;
+  background: rgba(255,255,255,0.06);
+  border-radius: 24px;
+  font-size: 13.5px; font-weight: 700;
+  flex-shrink: 0;
+}
+.swap-select .coin-icon{ width: 26px; height: 26px; font-size: 10px; }
+.swap-divider{
+  display: flex; align-items: center; justify-content: center;
+  margin: -12px 0; position: relative; z-index: 2;
+}
+.swap-divider button{
+  width: 38px; height: 38px;
+  border-radius: 50%;
+  background: var(--bg-app);
+  border: 4px solid var(--bg-app);
+  box-shadow: 0 0 0 1px var(--border);
+  display: flex; align-items: center; justify-content: center;
+  color: var(--green);
+  transition: transform 0.3s var(--ease);
+}
+.swap-divider button:hover{ transform: rotate(180deg); }
+.swap-rate{ text-align: center; font-size: 12px; color: var(--text-faint); margin: 14px 0 18px; font-family: var(--font-mono); }
+
+/* ---- Settings ---- */
+.settings-group{ margin-bottom: 24px; }
+.settings-group-label{ font-size: 12px; font-weight: 700; color: var(--text-faint); text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 10px; padding-left: 2px; }
+.settings-row{
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 15px 16px;
+  background: var(--card);
+  border: 1px solid var(--border-soft);
+}
+.settings-row:first-child{ border-radius: 16px 16px 0 0; }
+.settings-row:last-child{ border-radius: 0 0 16px 16px; border-top: none; }
+.settings-row:only-child{ border-radius: 16px; }
+.settings-row + .settings-row{ border-top: none; }
+.settings-row .label-block .t{ font-size: 14px; font-weight: 600; }
+.settings-row .label-block .d{ font-size: 11.5px; color: var(--text-faint); margin-top: 2px; }
+.settings-row.danger .label-block .t{ color: var(--red); }
+
+.toggle{
+  width: 46px; height: 27px; border-radius: 20px;
+  background: rgba(255,255,255,0.1);
+  position: relative; flex-shrink: 0;
+  transition: background 0.25s var(--ease);
+}
+.toggle.on{ background: var(--green); }
+.toggle::after{
+  content: ''; position: absolute; top: 3px; left: 3px;
+  width: 21px; height: 21px; border-radius: 50%;
+  background: #fff;
+  transition: transform 0.25s var(--ease);
+  box-shadow: 0 2px 4px rgba(0,0,0,0.3);
+}
+.toggle.on::after{ transform: translateX(19px); }
+
+.disclaimer-box{
+  padding: 16px;
+  background: rgba(43,227,138,0.06);
+  border: 1px solid rgba(43,227,138,0.18);
+  border-radius: 16px;
+  font-size: 12px; line-height: 1.6; color: var(--text-dim);
+  display: flex; gap: 10px;
+}
+.disclaimer-box i{ color: var(--green); font-size: 14px; margin-top: 1px; flex-shrink: 0; }
+
+.app-version{ text-align: center; font-size: 11px; color: var(--text-faint); margin-top: 8px; font-family: var(--font-mono); }
+
+/* =========================================================================
+   MODALE / BOTTOM SHEET
+   ========================================================================= */
+.modal-overlay{
+  position: absolute; inset: 0;
+  background: rgba(0,0,0,0.6);
+  backdrop-filter: blur(4px);
+  z-index: 100;
+  opacity: 0; pointer-events: none;
+  transition: opacity 0.3s var(--ease);
+  display: flex; align-items: flex-end;
+  border-radius: 40px;
+}
+.modal-overlay.active{ opacity: 1; pointer-events: auto; }
+
+.modal-sheet{
+  width: 100%;
+  background: #0e120e;
+  border: 1px solid var(--border);
+  border-top-left-radius: 28px;
+  border-top-right-radius: 28px;
+  padding: 22px 22px calc(26px + env(safe-area-inset-bottom, 0px));
+  transform: translateY(100%);
+  transition: transform 0.35s var(--ease);
+}
+.modal-overlay.active .modal-sheet{ transform: translateY(0); }
+
+.modal-handle{ width: 36px; height: 4px; background: rgba(255,255,255,0.15); border-radius: 4px; margin: 0 auto 18px; }
+.modal-title{ font-family: var(--font-display); font-size: 18px; font-weight: 800; margin-bottom: 4px; }
+.modal-sub{ font-size: 12.5px; color: var(--text-faint); margin-bottom: 20px; }
+
+.input-group{ margin-bottom: 16px; }
+.input-group label{ display: block; font-size: 12px; font-weight: 600; color: var(--text-faint); margin-bottom: 8px; }
+.amount-input-wrap{
+  display: flex; align-items: center; gap: 8px;
+  background: rgba(255,255,255,0.04);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 14px 16px;
+  transition: border-color 0.2s;
+}
+.amount-input-wrap:focus-within{ border-color: var(--green); }
+.amount-input-wrap .prefix{ font-family: var(--font-mono); font-size: 20px; color: var(--text-faint); font-weight: 600; }
+.amount-input-wrap input{
+  flex: 1; background: none; border: none; outline: none;
+  font-family: var(--font-mono); font-size: 20px; font-weight: 700; color: var(--text);
+}
+.input-hint{ font-size: 11.5px; color: var(--text-faint); margin-top: 8px; }
+.input-hint.error{ color: var(--red); }
+
+.quick-amounts{ display: flex; gap: 8px; margin-bottom: 20px; }
+.quick-amounts button{
+  flex: 1; padding: 9px 0; text-align: center;
+  background: var(--card); border: 1px solid var(--border-soft);
+  border-radius: 10px; font-size: 12.5px; font-weight: 600; color: var(--text-dim);
+  transition: background 0.2s;
+}
+.quick-amounts button:hover{ background: var(--card-hover); color: var(--text); }
+
+.modal-confirm-btn{
+  width: 100%; padding: 16px 0; text-align: center;
+  background: var(--green); color: #06170f;
+  border-radius: 16px; font-size: 15px; font-weight: 700;
+  transition: filter 0.2s, transform 0.15s;
+}
+.modal-confirm-btn:hover{ filter: brightness(1.08); }
+.modal-confirm-btn:active{ transform: scale(0.98); }
+.modal-confirm-btn:disabled{ opacity: 0.4; pointer-events: none; }
+
+.modal-close{
+  position: absolute; top: 20px; right: 20px;
+  width: 30px; height: 30px; border-radius: 50%;
+  background: rgba(255,255,255,0.06);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 12px; color: var(--text-dim);
+}
+
+.select-list{ max-height: 280px; overflow-y: auto; display: flex; flex-direction: column; gap: 2px; margin-bottom: 4px; }
+.select-list .asset-row{ cursor: pointer; }
+
+.history-list{ display: flex; flex-direction: column; gap: 2px; max-height: 340px; overflow-y: auto; }
+.history-row{ display: flex; align-items: center; gap: 12px; padding: 12px 4px; border-bottom: 1px solid var(--border-soft); }
+.history-row:last-child{ border-bottom: none; }
+.history-icon{
+  width: 36px; height: 36px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 13px; flex-shrink: 0;
+}
+.history-icon.deposit{ background: rgba(43,227,138,0.12); color: var(--green); }
+.history-icon.withdraw{ background: rgba(255,92,92,0.12); color: var(--red); }
+.history-icon.swap{ background: rgba(255,255,255,0.08); color: var(--text-dim); }
+.history-icon.buy{ background: rgba(43,227,138,0.12); color: var(--green); }
+.history-icon.sell{ background: rgba(255,92,92,0.12); color: var(--red); }
+.history-info{ flex: 1; min-width: 0; }
+.history-info .t{ font-size: 13.5px; font-weight: 600; }
+.history-info .d{ font-size: 11.5px; color: var(--text-faint); margin-top: 1px; }
+.history-amt{ font-family: var(--font-mono); font-size: 13px; font-weight: 700; flex-shrink: 0; }
+.history-amt.pos{ color: var(--green); }
+.history-amt.neg{ color: var(--red); }
+
+/* =========================================================================
+   TOAST
+   ========================================================================= */
+.toast-wrap{
+  position: absolute; bottom: 100px; left: 0; right: 0;
+  display: flex; justify-content: center; z-index: 200;
+  padding: 0 22px; pointer-events: none;
+}
+.toast{
+  display: flex; align-items: center; gap: 10px;
+  padding: 13px 18px;
+  background: #14181490;
+  backdrop-filter: blur(20px);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  font-size: 13px; font-weight: 600;
+  box-shadow: 0 10px 30px -8px rgba(0,0,0,0.6);
+  opacity: 0; transform: translateY(10px) scale(0.95);
+  transition: all 0.3s var(--ease);
+}
+.toast.show{ opacity: 1; transform: translateY(0) scale(1); }
+.toast i{ color: var(--green); font-size: 14px; }
+.toast.error i{ color: var(--red); }
+
+/* =========================================================================
+   NUMER-UP ANIMACJA / MIKRO-EFEKTY
+   ========================================================================= */
+@keyframes fadeInUp{ from{ opacity:0; transform: translateY(8px);} to{ opacity:1; transform: translateY(0);} }
+.fade-in{ animation: fadeInUp 0.4s var(--ease) both; }
+
+/* =========================================================================
+   RESPONSYWNOŚĆ
+   ========================================================================= */
+@media (max-width: 480px){
+  .stage{ padding: 0; }
+  .phone{
+    width: 100vw; height: 100dvh; max-height: none;
+    border-radius: 0; padding: 0; box-shadow: none;
+  }
+  .screen{ border-radius: 0; }
+  .notch{ display: none; }
+  .statusbar{ padding-top: max(16px, env(safe-area-inset-top)); }
+}
+
+@media (min-width: 481px) and (max-width: 900px){
+  .phone{ width: 390px; height: 820px; }
+}
+</style>
+</head>
+<body>
+
+<div class="stage">
+  <div class="phone">
+    <div class="notch"></div>
+    <div class="screen">
+
+      <!-- ============ FAŁSZYWY PASEK STATUSU ============ -->
+      <div class="statusbar">
+        <span id="clock">12:30</span>
+        <div class="icons">
+          <i class="fa-solid fa-signal"></i>
+          <i class="fa-solid fa-wifi"></i>
+          <i class="fa-solid fa-battery-full"></i>
+        </div>
+      </div>
+
+      <!-- ============ KONTENER WIDOKÓW ============ -->
+      <div class="views" id="views">
+
+        <!-- ---------- WIDOK: HOME / PORTFOLIO ---------- -->
+        <section class="view" id="view-home">
+          <div class="view-header">
+            <h1>Portfolio</h1>
+            <button class="icon-btn" id="btn-notify" aria-label="Powiadomienia">
+              <i class="fa-regular fa-bell"></i>
+              <span class="dot"></span>
+            </button>
+          </div>
+
+          <div class="card balance-card">
+            <div class="balance-top">
+              <div class="balance-label">
+                <span>Total Balance</span>
+                <button id="btn-toggle-balance" aria-label="Pokaż/ukryj saldo"><i class="fa-regular fa-eye"></i></button>
+              </div>
+              <div class="period-pill">24h <i class="fa-solid fa-chevron-down" style="font-size:9px;"></i></div>
+            </div>
+            <div class="balance-amount" id="balance-amount">$0.00</div>
+            <div class="balance-delta" id="balance-delta"></div>
+            <div class="mini-chart"><canvas id="chart-portfolio"></canvas></div>
+          </div>
+
+          <div class="action-row">
+            <button class="action-btn primary" data-modal="deposit">
+              <div class="circle"><i class="fa-solid fa-arrow-down"></i></div>
+              <span>Deposit</span>
+            </button>
+            <button class="action-btn" data-modal="withdraw">
+              <div class="circle"><i class="fa-solid fa-arrow-up"></i></div>
+              <span>Withdraw</span>
+            </button>
+            <button class="action-btn" data-nav="swap">
+              <div class="circle"><i class="fa-solid fa-right-left"></i></div>
+              <span>Swap</span>
+            </button>
+            <button class="action-btn" data-modal="history">
+              <div class="circle"><i class="fa-solid fa-clock-rotate-left"></i></div>
+              <span>History</span>
+            </button>
+          </div>
+
+          <div class="section-title">
+            <span>My Assets</span>
+            <span class="muted" id="assets-count"></span>
+          </div>
+          <div class="asset-list" id="home-asset-list"></div>
+        </section>
+
+        <!-- ---------- WIDOK: MARKET ---------- -->
+        <section class="view" id="view-market">
+          <div class="view-header">
+            <h1>Market</h1>
+          </div>
+
+          <div class="search-bar">
+            <i class="fa-solid fa-magnifying-glass"></i>
+            <input type="text" id="market-search" placeholder="Search crypto…" autocomplete="off">
+          </div>
+
+          <div class="filter-tabs" id="market-filters">
+            <button class="filter-tab active" data-filter="all">All</button>
+            <button class="filter-tab" data-filter="gainers">Top Gainers</button>
+            <button class="filter-tab" data-filter="losers">Top Losers</button>
+            <button class="filter-tab" data-filter="favorites">Favorites</button>
+          </div>
+
+          <div class="asset-list" id="market-asset-list"></div>
+        </section>
+
+        <!-- ---------- WIDOK: COIN DETAIL ---------- -->
+        <section class="view" id="view-coin">
+          <div class="view-header">
+            <button class="back-btn" data-nav="home" id="coin-back-btn"><i class="fa-solid fa-arrow-left"></i></button>
+            <button class="icon-btn" id="btn-coin-fav"><i class="fa-regular fa-star"></i></button>
+          </div>
+
+          <div class="coin-header">
+            <div class="coin-icon" id="coin-icon"></div>
+            <div class="names">
+              <div class="full" id="coin-full-name"></div>
+              <div class="sym" id="coin-sym"></div>
+            </div>
+          </div>
+
+          <div class="coin-price-block">
+            <div class="coin-price" id="coin-price"></div>
+            <div class="coin-subprice" id="coin-subprice"></div>
+          </div>
+
+          <div class="timeframe-row" id="timeframe-row">
+            <button class="timeframe-btn" data-tf="1H">1H</button>
+            <button class="timeframe-btn active" data-tf="1D">1D</button>
+            <button class="timeframe-btn" data-tf="1W">1W</button>
+            <button class="timeframe-btn" data-tf="1M">1M</button>
+            <button class="timeframe-btn" data-tf="1Y">1Y</button>
+            <button class="timeframe-btn" data-tf="ALL">ALL</button>
+          </div>
+
+          <div class="coin-chart-wrap"><canvas id="chart-coin"></canvas></div>
+
+          <div class="stats-grid" id="coin-stats"></div>
+
+          <div class="buy-sell-row">
+            <button class="big-btn sell" data-modal="sell">Sell</button>
+            <button class="big-btn buy" data-modal="buy">Buy</button>
+          </div>
+        </section>
+
+        <!-- ---------- WIDOK: SWAP ---------- -->
+        <section class="view" id="view-swap">
+          <div class="view-header"><h1>Swap</h1></div>
+
+          <div class="card swap-card">
+            <div class="swap-field">
+              <div class="row-top">
+                <label>From</label>
+                <button class="max-btn" id="swap-max">MAX</button>
+              </div>
+              <div class="row-input">
+                <input type="number" id="swap-from-amount" placeholder="0.00" min="0" step="any">
+                <button class="swap-select" id="swap-from-select"></button>
+              </div>
+            </div>
+
+            <div class="swap-divider">
+              <button id="swap-flip" aria-label="Zamień kierunek"><i class="fa-solid fa-arrow-down-arrow-up"></i></button>
+            </div>
+
+            <div class="swap-field">
+              <div class="row-top"><label>To (estimated)</label></div>
+              <div class="row-input">
+                <input type="text" id="swap-to-amount" placeholder="0.00" readonly>
+                <button class="swap-select" id="swap-to-select"></button>
+              </div>
+            </div>
+
+            <div class="swap-rate" id="swap-rate">1 — = 0.00 —</div>
+            <button class="modal-confirm-btn" id="swap-confirm">Swap</button>
+          </div>
+        </section>
+
+        <!-- ---------- WIDOK: SETTINGS ---------- -->
+        <section class="view" id="view-settings">
+          <div class="view-header"><h1>Settings</h1></div>
+
+          <div class="settings-group">
+            <div class="settings-group-label">Preferences</div>
+            <div class="settings-row">
+              <div class="label-block">
+                <div class="t">Hide balance by default</div>
+                <div class="d">Wpływa na widok Portfolio</div>
+              </div>
+              <div class="toggle" id="toggle-hide-balance"></div>
+            </div>
+          </div>
+
+          <div class="settings-group">
+            <div class="settings-group-label">Data</div>
+            <div class="settings-row danger" id="btn-reset-sim">
+              <div class="label-block">
+                <div class="t">Reset simulation</div>
+                <div class="d">Przywraca saldo, aktywa i historię</div>
+              </div>
+              <i class="fa-solid fa-chevron-right" style="font-size:12px;color:var(--text-faint);"></i>
+            </div>
+          </div>
+
+          <div class="disclaimer-box">
+            <i class="fa-solid fa-circle-info"></i>
+            <span>To jest symulator portfela w celach demonstracyjnych i portfolio. Ceny, salda i wykresy to przykładowe dane generowane lokalnie — aplikacja nie łączy się z żadną prawdziwą giełdą, portfelem ani siecią blockchain, a wszystko jest zapisywane wyłącznie w pamięci Twojej przeglądarki (localStorage).</span>
+          </div>
+          <div class="app-version">v1.0.0 — client-side simulation</div>
+        </section>
+
+      </div>
+
+      <!-- ============ MODAL: DEPOSIT ============ -->
+      <div class="modal-overlay" id="modal-deposit">
+        <div class="modal-sheet">
+          <div class="modal-close" data-close-modal><i class="fa-solid fa-xmark"></i></div>
+          <div class="modal-handle"></div>
+          <div class="modal-title">Deposit funds</div>
+          <div class="modal-sub">Dodaj środki do salda gotówkowego portfela.</div>
+          <div class="input-group">
+            <label>Amount</label>
+            <div class="amount-input-wrap">
+              <span class="prefix">$</span>
+              <input type="number" id="deposit-amount" placeholder="0.00" min="0" step="any">
+            </div>
+          </div>
+          <div class="quick-amounts">
+            <button data-quick="100">+$100</button>
+            <button data-quick="500">+$500</button>
+            <button data-quick="1000">+$1,000</button>
+            <button data-quick="5000">+$5,000</button>
+          </div>
+          <button class="modal-confirm-btn" id="deposit-confirm">Confirm deposit</button>
+        </div>
+      </div>
+
+      <!-- ============ MODAL: WITHDRAW ============ -->
+      <div class="modal-overlay" id="modal-withdraw">
+        <div class="modal-sheet">
+          <div class="modal-close" data-close-modal><i class="fa-solid fa-xmark"></i></div>
+          <div class="modal-handle"></div>
+          <div class="modal-title">Withdraw funds</div>
+          <div class="modal-sub" id="withdraw-sub">Dostępna gotówka: $0.00</div>
+          <div class="input-group">
+            <label>Amount</label>
+            <div class="amount-input-wrap">
+              <span class="prefix">$</span>
+              <input type="number" id="withdraw-amount" placeholder="0.00" min="0" step="any">
+            </div>
+            <div class="input-hint" id="withdraw-hint"></div>
+          </div>
+          <button class="modal-confirm-btn" id="withdraw-confirm">Confirm withdrawal</button>
+        </div>
+      </div>
+
+      <!-- ============ MODAL: BUY ============ -->
+      <div class="modal-overlay" id="modal-buy">
+        <div class="modal-sheet">
+          <div class="modal-close" data-close-modal><i class="fa-solid fa-xmark"></i></div>
+          <div class="modal-handle"></div>
+          <div class="modal-title" id="buy-title">Buy</div>
+          <div class="modal-sub" id="buy-sub">Dostępna gotówka: $0.00</div>
+          <div class="input-group">
+            <label>Amount (USD)</label>
+            <div class="amount-input-wrap">
+              <span class="prefix">$</span>
+              <input type="number" id="buy-amount" placeholder="0.00" min="0" step="any">
+            </div>
+            <div class="input-hint" id="buy-hint"></div>
+          </div>
+          <button class="modal-confirm-btn" id="buy-confirm">Confirm buy</button>
+        </div>
+      </div>
+
+      <!-- ============ MODAL: SELL ============ -->
+      <div class="modal-overlay" id="modal-sell">
+        <div class="modal-sheet">
+          <div class="modal-close" data-close-modal><i class="fa-solid fa-xmark"></i></div>
+          <div class="modal-handle"></div>
+          <div class="modal-title" id="sell-title">Sell</div>
+          <div class="modal-sub" id="sell-sub">Posiadane: 0</div>
+          <div class="input-group">
+            <label id="sell-amount-label">Amount (coin)</label>
+            <div class="amount-input-wrap">
+              <input type="number" id="sell-amount" placeholder="0.00" min="0" step="any">
+            </div>
+            <div class="input-hint" id="sell-hint"></div>
+          </div>
+          <button class="modal-confirm-btn" id="sell-confirm">Confirm sell</button>
+        </div>
+      </div>
+
+      <!-- ============ MODAL: HISTORY ============ -->
+      <div class="modal-overlay" id="modal-history">
+        <div class="modal-sheet">
+          <div class="modal-close" data-close-modal><i class="fa-solid fa-xmark"></i></div>
+          <div class="modal-handle"></div>
+          <div class="modal-title">Transaction history</div>
+          <div class="modal-sub">Wszystkie operacje zapisane lokalnie</div>
+          <div class="history-list" id="history-list"></div>
+        </div>
+      </div>
+
+      <!-- ============ MODAL: WYBÓR MONETY (Swap) ============ -->
+      <div class="modal-overlay" id="modal-coin-select">
+        <div class="modal-sheet">
+          <div class="modal-close" data-close-modal><i class="fa-solid fa-xmark"></i></div>
+          <div class="modal-handle"></div>
+          <div class="modal-title" id="coin-select-title">Select coin</div>
+          <div class="modal-sub">Wybierz aktywo</div>
+          <div class="select-list" id="coin-select-list"></div>
+        </div>
+      </div>
+
+      <!-- ============ TOAST ============ -->
+      <div class="toast-wrap"><div class="toast" id="toast"><i class="fa-solid fa-circle-check"></i><span id="toast-text"></span></div></div>
+
+      <!-- ============ NAWIGACJA DOLNA ============ -->
+      <nav class="bottom-nav">
+        <button class="nav-item active" data-nav="home"><i class="fa-solid fa-house"></i><span>Home</span></button>
+        <button class="nav-item" data-nav="market"><i class="fa-solid fa-chart-simple"></i><span>Market</span></button>
+        <button class="nav-item" data-nav="swap"><i class="fa-solid fa-right-left"></i><span>Swap</span></button>
+        <button class="nav-item" data-nav="settings"><i class="fa-solid fa-gear"></i><span>Settings</span></button>
+      </nav>
+
+    </div>
+  </div>
+</div>
+
+<script>
+/* =========================================================================
+   DANE RYNKOWE (statyczne dane demonstracyjne)
+   W realnym wdrożeniu ten blok można podmienić na wywołanie prawdziwego API
+   (np. CoinGecko), zachowując tę samą strukturę obiektu.
+   ========================================================================= */
+const MARKET = [
+  { id:'bitcoin',    symbol:'BTC',  name:'Bitcoin',    price:68542.10, change:2.35,
+    marketCap:1350000000000, volume:28350000000, supply:19690000, supplyLabel:'19.69M BTC',
+    ath:73750.07, atl:67.81, bg:'linear-gradient(135deg,#f7931a,#c9720a)', glyph:'₿', glyphColor:'#fff' },
+  { id:'ethereum',   symbol:'ETH',  name:'Ethereum',   price:3847.21,  change:1.25,
+    marketCap:462800000000, volume:14200000000, supply:120280000, supplyLabel:'120.28M ETH',
+    ath:4878.26, atl:0.43, bg:'linear-gradient(135deg,#eceef2,#b7bdc9)', glyph:'Ξ', glyphColor:'#14151a' },
+  { id:'solana',     symbol:'SOL',  name:'Solana',     price:164.72,   change:4.21,
+    marketCap:77800000000, volume:3120000000, supply:472400000, supplyLabel:'472.4M SOL',
+    ath:263.71, atl:0.50, bg:'linear-gradient(135deg,#9945ff,#14f1b2)', glyph:'S', glyphColor:'#fff' },
+  { id:'bnb',        symbol:'BNB',  name:'BNB',        price:595.80,   change:0.65,
+    marketCap:86900000000, volume:1740000000, supply:145900000, supplyLabel:'145.9M BNB',
+    ath:717.05, atl:0.10, bg:'linear-gradient(135deg,#f0b90b,#caa008)', glyph:'B', glyphColor:'#14151a' },
+  { id:'xrp',        symbol:'XRP',  name:'XRP',        price:0.5321,   change:-0.25,
+    marketCap:30300000000, volume:1380000000, supply:56900000000, supplyLabel:'56.9B XRP',
+    ath:3.40, atl:0.0027, bg:'linear-gradient(135deg,#242424,#0a0a0a)', glyph:'X', glyphColor:'#fff' },
+  { id:'cardano',    symbol:'ADA',  name:'Cardano',    price:0.4521,   change:1.15,
+    marketCap:16100000000, volume:412000000, supply:35600000000, supplyLabel:'35.6B ADA',
+    ath:3.10, atl:0.017, bg:'linear-gradient(135deg,#0033ad,#2e5cff)', glyph:'A', glyphColor:'#fff' },
+  { id:'dogecoin',   symbol:'DOGE', name:'Dogecoin',   price:0.1653,   change:-1.35,
+    marketCap:24300000000, volume:980000000, supply:147000000000, supplyLabel:'147B DOGE',
+    ath:0.7376, atl:0.00008547, bg:'linear-gradient(135deg,#c2a633,#8f7a24)', glyph:'Ð', glyphColor:'#fff' },
+  { id:'avalanche',  symbol:'AVAX', name:'Avalanche',  price:34.21,    change:2.05,
+    marketCap:13900000000, volume:520000000, supply:406700000, supplyLabel:'406.7M AVAX',
+    ath:146.22, atl:2.79, bg:'linear-gradient(135deg,#e84142,#a82c2d)', glyph:'A', glyphColor:'#fff' },
+];
+
+const DEFAULT_HOLDINGS = { bitcoin:0, ethereum:0, solana:0, bnb:0, xrp:0, cardano:0, dogecoin:0, avalanche:0 };
+const DEFAULT_CASH = 50000; // startowa, w pełni wydawalna gotówka demo — bez sztucznie zablokowanych holdingów
+const STORAGE_KEY = 'cryptosim_state_v2'; // v2: nowy model salda (v1 miał zablokowane holdingi = fałszywy "próg dolny")
+
+/* =========================================================================
+   ZARZĄDZANIE STANEM (localStorage)
+   ========================================================================= */
+function defaultState(){
+  return { cash: DEFAULT_CASH, holdings: { ...DEFAULT_HOLDINGS }, history: [], favorites: [], balanceHidden: false };
+}
+
+function loadState(){
+  try{
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if(!raw) return defaultState();
+    const parsed = JSON.parse(raw);
+    return { ...defaultState(), ...parsed, holdings: { ...DEFAULT_HOLDINGS, ...(parsed.holdings || {}) } };
+  }catch(e){
+    console.warn('Nie udało się wczytać stanu, używam wartości domyślnych.', e);
+    return defaultState();
+  }
+}
+
+function saveState(){
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+}
+
+let state = loadState();
+
+/* =========================================================================
+   FUNKCJE POMOCNICZE — formatowanie
+   ========================================================================= */
+function coinOf(id){ return MARKET.find(c => c.id === id); }
+
+function formatUSD(num, decimals = 2){
+  const n = Number(num) || 0;
+  return '$' + n.toLocaleString('en-US', { minimumFractionDigits: decimals, maximumFractionDigits: decimals });
+}
+
+function formatCompact(num){
+  const n = Number(num) || 0;
+  if(Math.abs(n) >= 1e12) return '$' + (n/1e12).toFixed(2) + 'T';
+  if(Math.abs(n) >= 1e9)  return '$' + (n/1e9).toFixed(2) + 'B';
+  if(Math.abs(n) >= 1e6)  return '$' + (n/1e6).toFixed(2) + 'M';
+  return formatUSD(n);
+}
+
+function formatQty(num){
+  const n = Number(num) || 0;
+  const decimals = n !== 0 && Math.abs(n) < 1 ? 4 : 2;
+  return n.toLocaleString('en-US', { minimumFractionDigits: decimals, maximumFractionDigits: decimals });
+}
+
+function coinValue(id){ return (state.holdings[id] || 0) * coinOf(id).price; }
+
+function totalBalance(){
+  return state.cash + MARKET.reduce((sum, c) => sum + (state.holdings[c.id] || 0) * c.price, 0);
+}
+
+/* Ważona średnia zmiana 24h portfela (na bazie wartości aktywów) */
+function portfolioChangePercent(){
+  const holdingsValue = MARKET.reduce((sum, c) => sum + coinValue(c.id), 0);
+  if(holdingsValue === 0) return 0;
+  const weightedChange = MARKET.reduce((sum, c) => sum + coinValue(c.id) * c.change, 0);
+  return weightedChange / holdingsValue;
+}
+
+/* =========================================================================
+   ANIMOWANY LICZNIK
+   ========================================================================= */
+let displayedBalance = null; // ostatnia poprawna wartość salda — zapamiętana w JS, nigdy nie odczytywana z powrotem z DOM
+let balanceAnimToken = 0;    // unieważnia "stare" pętle animacji, gdy wystartuje nowsza (np. szybkie klikanie)
+
+function animateNumber(el, from, to, opts = {}){
+  const { duration = 700, prefix = '$', decimals = 2 } = opts;
+  const myToken = ++balanceAnimToken;
+  const start = performance.now();
+  const diff = to - from;
+  function tick(now){
+    if(myToken !== balanceAnimToken) return; // nowsza animacja przejęła kontrolę — ta pętla się wycofuje
+    const t = Math.min(1, (now - start) / duration);
+    const eased = 1 - Math.pow(1 - t, 3); // ease-out cubic
+    const val = from + diff * eased;
+    el.textContent = prefix + val.toLocaleString('en-US', { minimumFractionDigits: decimals, maximumFractionDigits: decimals });
+    if(t < 1) requestAnimationFrame(tick);
+  }
+  requestAnimationFrame(tick);
+}
+
+/* =========================================================================
+   GENEROWANIE DANYCH DO WYKRESÓW (symulacja historii cen)
+   ========================================================================= */
+function generateSeries(basePrice, points, volatility){
+  const arr = [Math.max(basePrice * (1 - volatility), 0.0000001)];
+  for(let i = 1; i < points; i++){
+    const prev = arr[i - 1];
+    const drift = (Math.random() - 0.42) * volatility * basePrice * 0.09;
+    const next = Math.max(prev + drift, basePrice * 0.4);
+    arr.push(next);
+  }
+  arr[arr.length - 1] = basePrice;
+  return arr;
+}
+
+function hexToRgba(hex, alpha){
+  // Obsługuje też gradienty CSS — w takim wypadku używa koloru zapasowego.
+  if(!hex || hex.indexOf('#') !== 0) return `rgba(43,227,138,${alpha})`;
+  const h = hex.replace('#','');
+  const bigint = parseInt(h.length === 3 ? h.split('').map(c=>c+c).join('') : h, 16);
+  const r = (bigint >> 16) & 255, g = (bigint >> 8) & 255, b = bigint & 255;
+  return `rgba(${r},${g},${b},${alpha})`;
+}
+
+/* =========================================================================
+   WYKRESY (Chart.js)
+   ========================================================================= */
+let portfolioChart = null;
+let coinChart = null;
+let portfolioSeriesCache = null;
+let activeTimeframe = '1D';
+
+function renderPortfolioChart(){
+  const canvas = document.getElementById('chart-portfolio');
+  const ctx = canvas.getContext('2d');
+  const total = totalBalance();
+  const positive = portfolioChangePercent() >= 0;
+  const color = positive ? '#2be38a' : '#ff5c5c';
+
+  if(!portfolioSeriesCache){
+    portfolioSeriesCache = generateSeries(total > 0 ? total : 1000, 28, 0.12);
+  }
+
+  const gradient = ctx.createLinearGradient(0, 0, 0, 110);
+  gradient.addColorStop(0, hexToRgba(color, 0.35));
+  gradient.addColorStop(1, hexToRgba(color, 0));
+
+  if(portfolioChart) portfolioChart.destroy();
+  portfolioChart = new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels: portfolioSeriesCache.map((_, i) => i),
+      datasets: [{
+        data: portfolioSeriesCache,
+        borderColor: color,
+        borderWidth: 2.2,
+        pointRadius: 0,
+        tension: 0.4,
+        fill: true,
+        backgroundColor: gradient,
+      }]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      animation: { duration: 600 },
+      plugins: { legend: { display: false }, tooltip: { enabled: false } },
+      scales: {
+        x: { display: false },
+        y: { display: false }
+      },
+      elements: { point: { hoverRadius: 0 } }
+    }
+  });
+}
+
+const TF_CONFIG = {
+  '1H':  { points: 30, volatility: 0.02, labels: (n)=>Array.from({length:n},(_,i)=> (i*2)+':00' ) },
+  '1D':  { points: 24, volatility: 0.045, labels: (n)=>['00:00','06:00','12:00','18:00','24:00'] },
+  '1W':  { points: 7,  volatility: 0.08, labels: (n)=>['Mon','Tue','Wed','Thu','Fri','Sat','Sun'] },
+  '1M':  { points: 30, volatility: 0.14, labels: (n)=>['W1','W2','W3','W4'] },
+  '1Y':  { points: 12, volatility: 0.35, labels: (n)=>['Jan','Mar','May','Jul','Sep','Nov'] },
+  'ALL': { points: 24, volatility: 0.55, labels: (n)=>['','','',''] },
+};
+
+function renderCoinChart(coin){
+  const canvas = document.getElementById('chart-coin');
+  const ctx = canvas.getContext('2d');
+  const cfg = TF_CONFIG[activeTimeframe];
+  const series = generateSeries(coin.price, cfg.points, cfg.volatility);
+  const positive = series[series.length - 1] >= series[0];
+  const color = positive ? '#2be38a' : '#ff5c5c';
+
+  const gradient = ctx.createLinearGradient(0, 0, 0, 190);
+  gradient.addColorStop(0, hexToRgba(color, 0.3));
+  gradient.addColorStop(1, hexToRgba(color, 0));
+
+  if(coinChart) coinChart.destroy();
+  coinChart = new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels: series.map((_, i) => i),
+      datasets: [{
+        data: series,
+        borderColor: color,
+        borderWidth: 2.2,
+        pointRadius: 0,
+        tension: 0.35,
+        fill: true,
+        backgroundColor: gradient,
+      }]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      animation: { duration: 500 },
+      plugins: { legend: { display: false }, tooltip: { enabled: false } },
+      scales: {
+        x: {
+          grid: { display: false },
+          ticks: { color: '#545e58', font: { family: 'JetBrains Mono', size: 9 }, maxRotation: 0, autoSkip: true, maxTicksLimit: 5 },
+          border: { display: false }
+        },
+        y: {
+          position: 'right',
+          grid: { color: 'rgba(255,255,255,0.05)' },
+          ticks: { color: '#545e58', font: { family: 'JetBrains Mono', size: 9 }, callback: (v)=> '$'+Number(v).toLocaleString('en-US',{maximumFractionDigits:0}) },
+          border: { display: false }
+        }
+      }
+    }
+  });
+}
+
+/* =========================================================================
+   NAWIGACJA MIĘDZY WIDOKAMI
+   ========================================================================= */
+let currentCoinId = null;
+let coinDetailReturnView = 'home';
+
+function switchView(name, opts = {}){
+  document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+  document.getElementById('view-' + name).classList.add('active');
+  document.getElementById('view-' + name).scrollTop = 0;
+
+  document.querySelectorAll('.nav-item').forEach(n => {
+    n.classList.toggle('active', n.dataset.nav === name);
+  });
+
+  if(name === 'home') renderHome();
+  if(name === 'market') renderMarket();
+  if(name === 'swap') renderSwap();
+  if(name === 'settings') renderSettings();
+  if(name === 'coin' && opts.coinId){
+    currentCoinId = opts.coinId;
+    activeTimeframe = '1D';
+    renderCoinDetail(currentCoinId);
+  }
+}
+
+document.querySelectorAll('[data-nav]').forEach(el => {
+  el.addEventListener('click', () => {
+    const target = el.dataset.nav;
+    if(target === 'home' && el.id === 'coin-back-btn'){
+      switchView(coinDetailReturnView);
+    } else {
+      switchView(target);
+    }
+  });
+});
+
+/* =========================================================================
+   RENDEROWANIE: HOME / PORTFOLIO
+   ========================================================================= */
+function renderHome(){
+  const total = totalBalance();
+  const changePct = portfolioChangePercent();
+  const changeUsd = total * (changePct / 100);
+  const positive = changePct >= 0;
+
+  const balanceEl = document.getElementById('balance-amount');
+  if(state.balanceHidden){
+    balanceEl.textContent = '$••••••';
+    balanceAnimToken++; // anuluj ewentualną animację w toku
+    displayedBalance = total;
+  } else {
+    const from = displayedBalance === null ? 0 : displayedBalance;
+    animateNumber(balanceEl, from, total, { duration: 700 });
+    displayedBalance = total;
+  }
+
+  const deltaEl = document.getElementById('balance-delta');
+  deltaEl.classList.toggle('negative', !positive);
+  if(state.balanceHidden){
+    deltaEl.innerHTML = `<span>••••</span>`;
+  } else {
+    deltaEl.innerHTML = `<i class="fa-solid fa-caret-${positive?'up':'down'}"></i> ${positive?'+':''}${formatUSD(changeUsd)} (${positive?'+':''}${changePct.toFixed(2)}%) 24h`;
+  }
+
+  document.getElementById('btn-toggle-balance').innerHTML =
+    `<i class="fa-regular fa-eye${state.balanceHidden ? '-slash' : ''}"></i>`;
+
+  portfolioSeriesCache = null; // odśwież przebieg wykresu przy każdym wejściu
+  renderPortfolioChart();
+
+  const held = MARKET.filter(c => (state.holdings[c.id] || 0) > 0);
+  document.getElementById('assets-count').textContent = held.length + (held.length === 1 ? ' asset' : ' assets');
+
+  const list = document.getElementById('home-asset-list');
+  if(held.length === 0){
+    list.innerHTML = `<div class="empty-state"><i class="fa-solid fa-wallet"></i><p>Brak aktywów. Kup coś na rynku, aby zacząć.</p></div>`;
+    return;
+  }
+  list.innerHTML = held.map(c => assetRowHTML(c)).join('');
+  bindAssetRowClicks(list);
+}
+
+function assetRowHTML(c){
+  const qty = state.holdings[c.id] || 0;
+  const val = qty * c.price;
+  const positive = c.change >= 0;
+  return `
+    <div class="asset-row" data-coin="${c.id}">
+      <div class="coin-icon" style="background:${c.bg};color:${c.glyphColor}">${c.glyph}</div>
+      <div class="asset-info">
+        <div class="name">${c.name}</div>
+        <div class="sub">${c.symbol}</div>
+      </div>
+      <div class="asset-numbers">
+        <div class="primary-val">${formatQty(qty)}</div>
+        <div class="secondary-val">${formatUSD(val)}</div>
+      </div>
+      <div style="text-align:right;min-width:56px;">
+        <div class="change-pill ${positive?'positive':'negative'}">
+          <i class="fa-solid fa-caret-${positive?'up':'down'}"></i>${Math.abs(c.change).toFixed(2)}%
+        </div>
+      </div>
+    </div>`;
+}
+
+function bindAssetRowClicks(container){
+  container.querySelectorAll('.asset-row[data-coin]').forEach(row => {
+    row.addEventListener('click', () => {
+      coinDetailReturnView = document.getElementById('view-market').classList.contains('active') ? 'market' : 'home';
+      switchView('coin', { coinId: row.dataset.coin });
+    });
+  });
+}
+
+/* =========================================================================
+   MINI-WYKRESY (sparklines) NA LIŚCIE MARKET
+   Lekkie SVG zamiast osobnej instancji Chart.js na wiersz (wydajniej przy
+   wielu monetach). Przebieg jest deterministyczny (seed = id monety), więc
+   nie "skacze" losowo przy każdym renderze, i zawsze kończy się zgodnie
+   z kierunkiem realnej zmiany 24h danej monety.
+   ========================================================================= */
+function sparklineSVG(coin){
+  const positive = coin.change >= 0;
+  const color = positive ? '#2be38a' : '#ff5c5c';
+
+  let seed = [...coin.id].reduce((a, ch) => a + ch.charCodeAt(0), 0) + 1;
+  function rand(){ seed = (seed * 9301 + 49297) % 233280; return seed / 233280; }
+
+  const points = 16;
+  const bias = positive ? 0.6 : 0.4;
+  const vals = [50];
+  for(let i = 1; i < points; i++){
+    const step = (rand() < bias ? 1 : -1) * (5 + rand() * 9);
+    vals.push(Math.max(8, Math.min(92, vals[i - 1] + step)));
+  }
+  // Ostatni punkt zawsze zgodny z realnym kierunkiem zmiany 24h monety
+  if(positive && vals[vals.length - 1] < vals[0]) vals[vals.length - 1] = vals[0] + 12;
+  if(!positive && vals[vals.length - 1] > vals[0]) vals[vals.length - 1] = vals[0] - 12;
+
+  const w = 60, h = 28;
+  const stepX = w / (points - 1);
+  const pts = vals.map((v, i) => `${(i * stepX).toFixed(1)},${(h - (v / 100) * h).toFixed(1)}`).join(' ');
+  return `<svg class="sparkline" viewBox="0 0 ${w} ${h}" preserveAspectRatio="none" aria-hidden="true">
+    <polyline points="${pts}" fill="none" stroke="${color}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+  </svg>`;
+}
+
+/* =========================================================================
+   RENDEROWANIE: MARKET
+   ========================================================================= */
+let marketFilter = 'all';
+let marketSearchTerm = '';
+
+function renderMarket(){
+  let list = [...MARKET];
+
+  if(marketSearchTerm){
+    const q = marketSearchTerm.toLowerCase();
+    list = list.filter(c => c.name.toLowerCase().includes(q) || c.symbol.toLowerCase().includes(q));
+  }
+
+  if(marketFilter === 'gainers'){
+    list = list.filter(c => c.change > 0).sort((a,b) => b.change - a.change);
+  } else if(marketFilter === 'losers'){
+    list = list.filter(c => c.change < 0).sort((a,b) => a.change - b.change);
+  } else if(marketFilter === 'favorites'){
+    list = list.filter(c => state.favorites.includes(c.id));
+  }
+
+  const container = document.getElementById('market-asset-list');
+  if(list.length === 0){
+    container.innerHTML = `<div class="empty-state"><i class="fa-solid fa-magnifying-glass"></i><p>Brak wyników dla wybranych filtrów.</p></div>`;
+    return;
+  }
+
+  container.innerHTML = list.map(c => {
+    const positive = c.change >= 0;
+    const isFav = state.favorites.includes(c.id);
+    return `
+      <div class="asset-row" data-coin="${c.id}">
+        <div class="coin-icon" style="background:${c.bg};color:${c.glyphColor}">${c.glyph}</div>
+        <div class="asset-info">
+          <div class="name">${c.name}</div>
+          <div class="sub">${c.symbol}</div>
+        </div>
+        ${sparklineSVG(c)}
+        <div class="asset-numbers">
+          <div class="primary-val">${formatUSD(c.price, c.price < 1 ? 4 : 2)}</div>
+          <div class="change-pill ${positive?'positive':'negative'}">
+            <i class="fa-solid fa-caret-${positive?'up':'down'}"></i>${Math.abs(c.change).toFixed(2)}%
+          </div>
+        </div>
+        <button class="star-btn ${isFav?'active':''}" data-fav="${c.id}" aria-label="Ulubione">
+          <i class="fa-${isFav?'solid':'regular'} fa-star"></i>
+        </button>
+      </div>`;
+  }).join('');
+
+  bindAssetRowClicks(container);
+  container.querySelectorAll('[data-fav]').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const id = btn.dataset.fav;
+      const idx = state.favorites.indexOf(id);
+      if(idx === -1) state.favorites.push(id); else state.favorites.splice(idx, 1);
+      saveState();
+      renderMarket();
+    });
+  });
+}
+
+document.getElementById('market-search').addEventListener('input', (e) => {
+  marketSearchTerm = e.target.value;
+  renderMarket();
+});
+
+document.getElementById('market-filters').addEventListener('click', (e) => {
+  const btn = e.target.closest('.filter-tab');
+  if(!btn) return;
+  document.querySelectorAll('.filter-tab').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  marketFilter = btn.dataset.filter;
+  renderMarket();
+});
+
+/* =========================================================================
+   RENDEROWANIE: COIN DETAIL
+   ========================================================================= */
+function renderCoinDetail(coinId){
+  const c = coinOf(coinId);
+  document.getElementById('coin-icon').style.background = c.bg;
+  document.getElementById('coin-icon').style.color = c.glyphColor;
+  document.getElementById('coin-icon').textContent = c.glyph;
+  document.getElementById('coin-full-name').textContent = c.name;
+  document.getElementById('coin-sym').textContent = c.symbol + ' · ' + c.symbol + '/USD';
+  document.getElementById('coin-price').textContent = formatUSD(c.price, c.price < 1 ? 4 : 2);
+
+  const positive = c.change >= 0;
+  document.getElementById('coin-subprice').innerHTML =
+    `<span style="color:${positive?'var(--green)':'var(--red)'}">${positive?'+':''}${c.change.toFixed(2)}%</span> · Posiadasz: ${formatQty(state.holdings[coinId] || 0)} ${c.symbol}`;
+
+  const isFav = state.favorites.includes(coinId);
+  document.getElementById('btn-coin-fav').innerHTML = `<i class="fa-${isFav?'solid':'regular'} fa-star" style="color:${isFav?'var(--green)':'inherit'}"></i>`;
+
+  document.getElementById('coin-stats').innerHTML = `
+    <div class="stat-row"><span class="label">Market Cap</span><span class="val">${formatCompact(c.marketCap)}</span></div>
+    <div class="stat-row"><span class="label">Volume (24h)</span><span class="val">${formatCompact(c.volume)}</span></div>
+    <div class="stat-row"><span class="label">Circulating Supply</span><span class="val">${c.supplyLabel}</span></div>
+    <div class="stat-row"><span class="label">All Time High</span><span class="val">${formatUSD(c.ath, c.ath < 1 ? 4 : 2)}</span></div>
+    <div class="stat-row"><span class="label">All Time Low</span><span class="val">${formatUSD(c.atl, c.atl < 1 ? 6 : 2)}</span></div>
+  `;
+
+  renderCoinChart(c);
+}
+
+document.getElementById('btn-coin-fav').addEventListener('click', () => {
+  const idx = state.favorites.indexOf(currentCoinId);
+  if(idx === -1) state.favorites.push(currentCoinId); else state.favorites.splice(idx, 1);
+  saveState();
+  renderCoinDetail(currentCoinId);
+});
+
+document.getElementById('timeframe-row').addEventListener('click', (e) => {
+  const btn = e.target.closest('.timeframe-btn');
+  if(!btn) return;
+  document.querySelectorAll('.timeframe-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  activeTimeframe = btn.dataset.tf;
+  renderCoinChart(coinOf(currentCoinId));
+});
+
+/* =========================================================================
+   RENDEROWANIE: SWAP
+   ========================================================================= */
+let swapFromId = 'bitcoin';
+let swapToId = 'ethereum';
+
+function renderSwap(){
+  const from = coinOf(swapFromId), to = coinOf(swapToId);
+  document.getElementById('swap-from-select').innerHTML = `<div class="coin-icon" style="background:${from.bg};color:${from.glyphColor}">${from.glyph}</div> ${from.symbol} <i class="fa-solid fa-chevron-down" style="font-size:9px;"></i>`;
+  document.getElementById('swap-to-select').innerHTML = `<div class="coin-icon" style="background:${to.bg};color:${to.glyphColor}">${to.glyph}</div> ${to.symbol} <i class="fa-solid fa-chevron-down" style="font-size:9px;"></i>`;
+  document.getElementById('swap-rate').textContent = `1 ${from.symbol} = ${formatQty(from.price / to.price)} ${to.symbol}`;
+  updateSwapEstimate();
+}
+
+function updateSwapEstimate(){
+  const from = coinOf(swapFromId), to = coinOf(swapToId);
+  const amt = parseFloat(document.getElementById('swap-from-amount').value) || 0;
+  const estimated = amt * (from.price / to.price);
+  document.getElementById('swap-to-amount').value = amt > 0 ? formatQty(estimated) : '';
+}
+
+document.getElementById('swap-from-amount').addEventListener('input', updateSwapEstimate);
+
+document.getElementById('swap-max').addEventListener('click', () => {
+  document.getElementById('swap-from-amount').value = state.holdings[swapFromId] || 0;
+  updateSwapEstimate();
+});
+
+document.getElementById('swap-flip').addEventListener('click', () => {
+  [swapFromId, swapToId] = [swapToId, swapFromId];
+  document.getElementById('swap-from-amount').value = '';
+  renderSwap();
+});
+
+document.getElementById('swap-from-select').addEventListener('click', () => openCoinSelect('from'));
+document.getElementById('swap-to-select').addEventListener('click', () => openCoinSelect('to'));
+
+function openCoinSelect(which){
+  document.getElementById('coin-select-title').textContent = which === 'from' ? 'Swap from' : 'Swap to';
+  const list = document.getElementById('coin-select-list');
+  list.innerHTML = MARKET.map(c => `
+    <div class="asset-row" data-select-coin="${c.id}">
+      <div class="coin-icon" style="background:${c.bg};color:${c.glyphColor}">${c.glyph}</div>
+      <div class="asset-info"><div class="name">${c.name}</div><div class="sub">${c.symbol}</div></div>
+      <div class="asset-numbers"><div class="primary-val">${formatQty(state.holdings[c.id] || 0)}</div></div>
+    </div>`).join('');
+  list.querySelectorAll('[data-select-coin]').forEach(row => {
+    row.addEventListener('click', () => {
+      if(which === 'from') swapFromId = row.dataset.selectCoin; else swapToId = row.dataset.selectCoin;
+      document.getElementById('swap-from-amount').value = '';
+      renderSwap();
+      closeModal('coin-select');
+    });
+  });
+  openModal('coin-select');
+}
+
+document.getElementById('swap-confirm').addEventListener('click', () => {
+  const amt = parseFloat(document.getElementById('swap-from-amount').value) || 0;
+  const owned = state.holdings[swapFromId] || 0;
+  if(amt <= 0) return showToast('Podaj kwotę do zamiany.', 'error');
+  if(amt > owned) return showToast('Za mało środków do zamiany.', 'error');
+
+  const from = coinOf(swapFromId), to = coinOf(swapToId);
+  const received = amt * (from.price / to.price);
+  state.holdings[swapFromId] = owned - amt;
+  state.holdings[swapToId] = (state.holdings[swapToId] || 0) + received;
+  pushHistory('swap', `${formatQty(amt)} ${from.symbol} → ${formatQty(received)} ${to.symbol}`, null);
+  saveState();
+  document.getElementById('swap-from-amount').value = '';
+  renderSwap();
+  showToast(`Zamieniono ${from.symbol} na ${to.symbol}`);
+});
+
+/* =========================================================================
+   RENDEROWANIE: SETTINGS
+   ========================================================================= */
+function renderSettings(){
+  document.getElementById('toggle-hide-balance').classList.toggle('on', state.balanceHidden);
+}
+
+document.getElementById('toggle-hide-balance').addEventListener('click', () => {
+  state.balanceHidden = !state.balanceHidden;
+  saveState();
+  renderSettings();
+});
+
+document.getElementById('btn-reset-sim').addEventListener('click', () => {
+  if(confirm('Zresetować symulację? Saldo, aktywa i historia transakcji zostaną przywrócone do wartości domyślnych.')){
+    state = defaultState();
+    saveState();
+    portfolioSeriesCache = null;
+    switchView('home');
+    showToast('Symulacja została zresetowana');
+  }
+});
+
+/* =========================================================================
+   HISTORIA TRANSAKCJI
+   ========================================================================= */
+function pushHistory(type, title, amountUsd){
+  state.history.unshift({
+    type, title, amountUsd,
+    date: new Date().toISOString(),
+  });
+  if(state.history.length > 50) state.history.length = 50;
+}
+
+function renderHistory(){
+  const list = document.getElementById('history-list');
+  if(state.history.length === 0){
+    list.innerHTML = `<div class="empty-state"><i class="fa-solid fa-clock-rotate-left"></i><p>Brak transakcji.</p></div>`;
+    return;
+  }
+  const iconMap = { deposit:'fa-arrow-down', withdraw:'fa-arrow-up', swap:'fa-right-left', buy:'fa-arrow-down', sell:'fa-arrow-up' };
+  const labelMap = { deposit:'Deposit', withdraw:'Withdraw', swap:'Swap', buy:'Buy', sell:'Sell' };
+  list.innerHTML = state.history.map(h => {
+    const d = new Date(h.date);
+    const dateStr = d.toLocaleDateString('pl-PL', { day:'2-digit', month:'short' }) + ' · ' + d.toLocaleTimeString('pl-PL', { hour:'2-digit', minute:'2-digit' });
+    const amtClass = (h.type === 'deposit' || h.type === 'sell') ? 'pos' : (h.type === 'withdraw' || h.type === 'buy') ? 'neg' : '';
+    const sign = (h.type === 'deposit' || h.type === 'sell') ? '+' : (h.type === 'withdraw' || h.type === 'buy') ? '−' : '';
+    return `
+      <div class="history-row">
+        <div class="history-icon ${h.type}"><i class="fa-solid ${iconMap[h.type]}"></i></div>
+        <div class="history-info">
+          <div class="t">${labelMap[h.type]}</div>
+          <div class="d">${h.title} · ${dateStr}</div>
+        </div>
+        ${h.amountUsd !== null ? `<div class="history-amt ${amtClass}">${sign}${formatUSD(Math.abs(h.amountUsd))}</div>` : ''}
+      </div>`;
+  }).join('');
+}
+
+/* =========================================================================
+   MODALE — otwieranie / zamykanie
+   ========================================================================= */
+function openModal(name){
+  document.getElementById('modal-' + name).classList.add('active');
+}
+function closeModal(name){
+  document.getElementById('modal-' + name).classList.remove('active');
+}
+
+document.querySelectorAll('[data-close-modal]').forEach(btn => {
+  btn.addEventListener('click', () => btn.closest('.modal-overlay').classList.remove('active'));
+});
+document.querySelectorAll('.modal-overlay').forEach(overlay => {
+  overlay.addEventListener('click', (e) => { if(e.target === overlay) overlay.classList.remove('active'); });
+});
+
+document.querySelectorAll('[data-modal]').forEach(btn => {
+  btn.addEventListener('click', () => {
+    const name = btn.dataset.modal;
+    if(name === 'history'){ renderHistory(); openModal('history'); return; }
+    if(name === 'buy' || name === 'sell'){ prepareTradeModal(name); openModal(name); return; }
+    if(name === 'withdraw'){
+      document.getElementById('withdraw-sub').textContent = `Dostępna gotówka: ${formatUSD(state.cash)}`;
+      document.getElementById('withdraw-amount').value = '';
+      document.getElementById('withdraw-hint').textContent = '';
+    }
+    if(name === 'deposit'){ document.getElementById('deposit-amount').value = ''; }
+    openModal(name);
+  });
+});
+
+/* ---- Deposit ---- */
+document.querySelectorAll('[data-quick]').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.getElementById('deposit-amount').value = btn.dataset.quick;
+  });
+});
+
+document.getElementById('deposit-confirm').addEventListener('click', () => {
+  const amt = parseFloat(document.getElementById('deposit-amount').value);
+  if(!amt || amt <= 0) return showToast('Podaj prawidłową kwotę.', 'error');
+  state.cash += amt;
+  pushHistory('deposit', 'Cash deposit', amt);
+  saveState();
+  closeModal('deposit');
+  switchView('home');
+  showToast(`Wpłacono ${formatUSD(amt)}`);
+});
+
+/* ---- Withdraw ---- */
+document.getElementById('withdraw-amount').addEventListener('input', (e) => {
+  const amt = parseFloat(e.target.value) || 0;
+  const hint = document.getElementById('withdraw-hint');
+  if(amt > state.cash){
+    hint.textContent = 'Kwota przekracza dostępną gotówkę.';
+    hint.classList.add('error');
+  } else {
+    hint.textContent = '';
+    hint.classList.remove('error');
+  }
+});
+
+document.getElementById('withdraw-confirm').addEventListener('click', () => {
+  const amt = parseFloat(document.getElementById('withdraw-amount').value);
+  if(!amt || amt <= 0) return showToast('Podaj prawidłową kwotę.', 'error');
+  if(amt > state.cash) return showToast('Za mało środków gotówkowych.', 'error');
+  state.cash -= amt;
+  pushHistory('withdraw', 'Cash withdrawal', amt);
+  saveState();
+  closeModal('withdraw');
+  switchView('home');
+  showToast(`Wypłacono ${formatUSD(amt)}`);
+});
+
+/* ---- Buy / Sell (z widoku Coin Detail) ---- */
+function prepareTradeModal(type){
+  const c = coinOf(currentCoinId);
+  if(type === 'buy'){
+    document.getElementById('buy-title').textContent = `Buy ${c.symbol}`;
+    document.getElementById('buy-sub').textContent = `Dostępna gotówka: ${formatUSD(state.cash)} · Cena: ${formatUSD(c.price, c.price<1?4:2)}`;
+    document.getElementById('buy-amount').value = '';
+    document.getElementById('buy-hint').textContent = '';
+  } else {
+    const owned = state.holdings[currentCoinId] || 0;
+    document.getElementById('sell-title').textContent = `Sell ${c.symbol}`;
+    document.getElementById('sell-sub').textContent = `Posiadane: ${formatQty(owned)} ${c.symbol} · Cena: ${formatUSD(c.price, c.price<1?4:2)}`;
+    document.getElementById('sell-amount-label').textContent = `Amount (${c.symbol})`;
+    document.getElementById('sell-amount').value = '';
+    document.getElementById('sell-hint').textContent = '';
+  }
+}
+
+document.getElementById('buy-amount').addEventListener('input', (e) => {
+  const amt = parseFloat(e.target.value) || 0;
+  const hint = document.getElementById('buy-hint');
+  if(amt > state.cash){ hint.textContent = 'Kwota przekracza dostępną gotówkę.'; hint.classList.add('error'); }
+  else { const c = coinOf(currentCoinId); hint.textContent = amt > 0 ? `≈ ${formatQty(amt / c.price)} ${c.symbol}` : ''; hint.classList.remove('error'); }
+});
+
+document.getElementById('buy-confirm').addEventListener('click', () => {
+  const c = coinOf(currentCoinId);
+  const amt = parseFloat(document.getElementById('buy-amount').value);
+  if(!amt || amt <= 0) return showToast('Podaj prawidłową kwotę.', 'error');
+  if(amt > state.cash) return showToast('Za mało środków gotówkowych.', 'error');
+  const qty = amt / c.price;
+  state.cash -= amt;
+  state.holdings[currentCoinId] = (state.holdings[currentCoinId] || 0) + qty;
+  pushHistory('buy', `${formatQty(qty)} ${c.symbol}`, amt);
+  saveState();
+  closeModal('buy');
+  renderCoinDetail(currentCoinId);
+  showToast(`Kupiono ${formatQty(qty)} ${c.symbol}`);
+});
+
+document.getElementById('sell-amount').addEventListener('input', (e) => {
+  const amt = parseFloat(e.target.value) || 0;
+  const owned = state.holdings[currentCoinId] || 0;
+  const hint = document.getElementById('sell-hint');
+  if(amt > owned){ hint.textContent = 'Przekracza posiadaną ilość.'; hint.classList.add('error'); }
+  else { const c = coinOf(currentCoinId); hint.textContent = amt > 0 ? `≈ ${formatUSD(amt * c.price)}` : ''; hint.classList.remove('error'); }
+});
+
+document.getElementById('sell-confirm').addEventListener('click', () => {
+  const c = coinOf(currentCoinId);
+  const amt = parseFloat(document.getElementById('sell-amount').value);
+  const owned = state.holdings[currentCoinId] || 0;
+  if(!amt || amt <= 0) return showToast('Podaj prawidłową ilość.', 'error');
+  if(amt > owned) return showToast('Przekracza posiadaną ilość.', 'error');
+  const value = amt * c.price;
+  state.holdings[currentCoinId] = owned - amt;
+  state.cash += value;
+  pushHistory('sell', `${formatQty(amt)} ${c.symbol}`, value);
+  saveState();
+  closeModal('sell');
+  renderCoinDetail(currentCoinId);
+  showToast(`Sprzedano ${formatQty(amt)} ${c.symbol}`);
+});
+
+/* =========================================================================
+   TOAST
+   ========================================================================= */
+let toastTimer = null;
+function showToast(msg, type = 'success'){
+  const toast = document.getElementById('toast');
+  document.getElementById('toast-text').textContent = msg;
+  toast.classList.toggle('error', type === 'error');
+  toast.querySelector('i').className = type === 'error' ? 'fa-solid fa-circle-exclamation' : 'fa-solid fa-circle-check';
+  toast.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => toast.classList.remove('show'), 2600);
+}
+
+/* ---- Toggle widoczności salda (Home) ---- */
+document.getElementById('btn-toggle-balance').addEventListener('click', () => {
+  state.balanceHidden = !state.balanceHidden;
+  saveState();
+  renderHome();
+});
+
+/* =========================================================================
+   ZEGAR NA PASKU STATUSU
+   ========================================================================= */
+function updateClock(){
+  const now = new Date();
+  const h = String(now.getHours()).padStart(2, '0');
+  const m = String(now.getMinutes()).padStart(2, '0');
+  document.getElementById('clock').textContent = `${h}:${m}`;
+}
+updateClock();
+setInterval(updateClock, 10000);
+
+/* =========================================================================
+   INICJALIZACJA
+   ========================================================================= */
+renderHome();
+</script>
+</body>
+</html>
